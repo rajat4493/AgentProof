@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState, use as usePromise } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { getRun, type Run } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { Card, CardHeader, CardBody } from "@/components/Card";
 import { PredicateList } from "@/components/PredicateList";
 
-export default function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = usePromise(params);
+export default function RunDetailPage() {
+  const { id } = useParams<{ id: string }>();
   const [run, setRun] = useState<Run | null>(null);
   const [error, setError] = useState<string | null>(null);
 
