@@ -1,0 +1,18 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+
+# Env files (never commit real credentials)
+.env
+.env.local
+*.env
+!*.env.example
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/next-env.d.ts
+
+# OS
+.DS_Store
