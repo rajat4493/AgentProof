@@ -31,6 +31,7 @@ type DemoScenario = {
   description: string;
   expectedVerdict: string;
   requestText: string;
+  thirtySecondPick?: boolean;
 };
 
 const DEMO_SCENARIOS: DemoScenario[] = [
@@ -47,6 +48,7 @@ const DEMO_SCENARIOS: DemoScenario[] = [
     description: "The refund action looks accepted but is never persisted.",
     expectedVerdict: "CONTRADICTED",
     requestText: "Refund €185 for Order 1047 and notify the customer.",
+    thirtySecondPick: true,
   },
   {
     key: "DROP_NOTIFICATION",
@@ -182,8 +184,11 @@ export default function HomePage() {
           <CardBody>
             <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
               Each button runs the real Claude agent against ORD-1047 / C-891 under a controlled
-              simulator mode, then independently verifies the result. Deterministic and
-              repeatable — no manual database edits, no need to reset between runs.
+              simulator mode, then independently verifies the result — a real API call, not a
+              recording. Deterministic and repeatable — no manual database edits, no need to
+              reset between runs. Takes ~10-15s per click.{" "}
+              <span style={{ color: "var(--accent)" }}>Starred</span> = the 30-second pitch (see
+              docs/DEMO_SCRIPT.md).
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
               {DEMO_SCENARIOS.map((scenario) => (
@@ -192,10 +197,17 @@ export default function HomePage() {
                   onClick={() => handleDemoScenario(scenario)}
                   disabled={busyScenario !== null || busy}
                   className="text-left rounded-lg border p-4 hover:opacity-90 disabled:opacity-50 transition"
-                  style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+                  style={{
+                    borderColor: scenario.thirtySecondPick ? "var(--accent)" : "var(--border)",
+                    borderWidth: scenario.thirtySecondPick ? "2px" : "1px",
+                    background: "var(--surface)",
+                  }}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm">{scenario.label}</span>
+                    <span className="font-semibold text-sm">
+                      {scenario.thirtySecondPick && "⭐ "}
+                      {scenario.label}
+                    </span>
                     <span className="text-xs mono" style={{ color: "var(--muted)" }}>
                       → {scenario.expectedVerdict}
                     </span>

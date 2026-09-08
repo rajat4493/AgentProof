@@ -1,0 +1,518 @@
+<title>AgentProof</title>
+<style>
+  :root {
+    --bg: #eef1ef;
+    --surface: #ffffff;
+    --surface-alt: #f6f7f5;
+    --border: #d9dfda;
+    --ink: #142520;
+    --ink-muted: #57655f;
+    --accent: #1f3a5f;
+    --accent-ink: #ffffff;
+    --accent-soft: #e7edf3;
+    --verified: #1f7a4d;
+    --verified-bg: #e4f3ea;
+    --contradicted: #b23a2e;
+    --contradicted-bg: #f8e9e6;
+    --indeterminate: #9c6b14;
+    --indeterminate-bg: #fbf0dc;
+    --notverifiable: #55524a;
+    --notverifiable-bg: #efede7;
+    --shadow: 0 1px 2px rgba(20, 37, 32, 0.06), 0 8px 24px rgba(20, 37, 32, 0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #11181a;
+      --surface: #192224;
+      --surface-alt: #1f2a2b;
+      --border: #324040;
+      --ink: #e8ece9;
+      --ink-muted: #9fb0a9;
+      --accent: #8fb0da;
+      --accent-ink: #0e1a2b;
+      --accent-soft: rgba(143, 176, 218, 0.13);
+      --verified: #5bcf93;
+      --verified-bg: rgba(91, 207, 147, 0.12);
+      --contradicted: #ea7b6d;
+      --contradicted-bg: rgba(234, 123, 109, 0.13);
+      --indeterminate: #e3b354;
+      --indeterminate-bg: rgba(227, 179, 84, 0.13);
+      --notverifiable: #b6bcb4;
+      --notverifiable-bg: rgba(182, 188, 180, 0.1);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #11181a;
+    --surface: #192224;
+    --surface-alt: #1f2a2b;
+    --border: #324040;
+    --ink: #e8ece9;
+    --ink-muted: #9fb0a9;
+    --accent: #8fb0da;
+    --accent-ink: #0e1a2b;
+    --accent-soft: rgba(143, 176, 218, 0.13);
+    --verified: #5bcf93;
+    --verified-bg: rgba(91, 207, 147, 0.12);
+    --contradicted: #ea7b6d;
+    --contradicted-bg: rgba(234, 123, 109, 0.13);
+    --indeterminate: #e3b354;
+    --indeterminate-bg: rgba(227, 179, 84, 0.13);
+    --notverifiable: #b6bcb4;
+    --notverifiable-bg: rgba(182, 188, 180, 0.1);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  @font-face { font-display: swap; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .display {
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    text-wrap: balance;
+  }
+
+  .mono {
+    font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 28px;
+  }
+
+  a { color: var(--accent); }
+
+  /* ---------- Nav ---------- */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 26px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .nav .wrap { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand-mark {
+    width: 30px; height: 30px; border-radius: 7px;
+    background: var(--accent); color: var(--accent-ink);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Fraunces", serif; font-weight: 600; font-size: 17px;
+    flex: none;
+  }
+  .brand-name { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; letter-spacing: -0.01em; }
+  .nav-links { display: flex; gap: 28px; font-size: 14px; }
+  .nav-links a { text-decoration: none; color: var(--ink-muted); }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-cta {
+    font-size: 13px; font-weight: 600; text-decoration: none;
+    background: var(--accent); color: var(--accent-ink);
+    padding: 9px 16px; border-radius: 6px;
+  }
+
+  /* ---------- Hero ---------- */
+  .hero { padding: 76px 0 92px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-muted);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 12px 5px 10px; background: var(--surface);
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--contradicted); }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 56px;
+    align-items: center;
+    margin-top: 30px;
+  }
+  @media (max-width: 880px) { .hero-grid { grid-template-columns: 1fr; } }
+
+  h1.headline {
+    font-size: clamp(34px, 4.6vw, 56px);
+    line-height: 1.06;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 18px 0 0;
+  }
+  h1.headline .accent-line { color: var(--ink-muted); }
+
+  .hero-sub {
+    margin-top: 22px;
+    font-size: 18px;
+    color: var(--ink-muted);
+    max-width: 46ch;
+  }
+
+  .hero-ctas { display: flex; gap: 14px; margin-top: 32px; flex-wrap: wrap; }
+  .btn-primary {
+    background: var(--accent); color: var(--accent-ink);
+    text-decoration: none; font-weight: 600; font-size: 15px;
+    padding: 13px 22px; border-radius: 7px;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-secondary {
+    text-decoration: none; font-weight: 600; font-size: 15px;
+    padding: 13px 22px; border-radius: 7px;
+    border: 1px solid var(--border); color: var(--ink);
+  }
+
+  /* ---------- Claim / stamp exhibit ---------- */
+  .exhibit {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 26px 26px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .exhibit-label {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--ink-muted);
+    display: flex; justify-content: space-between; margin-bottom: 14px;
+    padding-right: 88px;
+  }
+  .claim-text {
+    font-family: "Fraunces", serif; font-style: italic; font-size: 17px;
+    line-height: 1.5; color: var(--ink); padding-right: 92px;
+  }
+  .checklist { margin-top: 18px; display: flex; flex-direction: column; gap: 7px; }
+  .check-row { display: flex; align-items: baseline; gap: 9px; font-size: 13px; }
+  .check-row .mk { font-weight: 700; width: 14px; flex: none; }
+  .check-row.fail .mk { color: var(--contradicted); }
+  .check-row.pass .mk { color: var(--verified); }
+  .check-row .lbl { color: var(--ink); }
+  .check-row .meta { color: var(--ink-muted); font-family: "IBM Plex Mono", monospace; font-size: 11.5px; }
+
+  .stamp {
+    position: absolute; top: 22px; right: -14px;
+    transform: rotate(-9deg);
+    border: 2.5px solid var(--contradicted);
+    color: var(--contradicted);
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 700; font-size: 15px; letter-spacing: 0.06em;
+    padding: 6px 16px 6px 20px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--contradicted-bg) 92%, transparent);
+  }
+
+  /* ---------- Section shell ---------- */
+  section.block { padding: 84px 0; border-top: 1px solid var(--border); }
+  .kicker {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 12px;
+  }
+  h2.section-title {
+    font-family: "Fraunces", serif; font-weight: 600; font-size: clamp(26px, 3vw, 34px);
+    letter-spacing: -0.01em; max-width: 20ch; text-wrap: balance;
+  }
+  .section-sub { margin-top: 14px; color: var(--ink-muted); max-width: 62ch; font-size: 16px; }
+
+  /* ---------- Pipeline ---------- */
+  .pipeline {
+    margin-top: 46px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0;
+    position: relative;
+  }
+  .pipeline::before {
+    content: "";
+    position: absolute; top: 21px; left: 0; right: 0; height: 1px;
+    background: var(--border);
+    z-index: 0;
+  }
+  @media (max-width: 880px) {
+    .pipeline { grid-template-columns: 1fr; gap: 22px; }
+    .pipeline::before { display: none; }
+  }
+  .stage { position: relative; z-index: 1; padding-right: 14px; }
+  .stage-dot {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--surface); border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 13px;
+    color: var(--ink-muted); margin-bottom: 14px;
+  }
+  .stage.authoritative .stage-dot { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .stage-name { font-weight: 600; font-size: 14px; }
+  .stage-desc { font-size: 12.5px; color: var(--ink-muted); margin-top: 5px; line-height: 1.45; }
+
+  /* ---------- Verdict docket ---------- */
+  .docket {
+    margin-top: 44px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+  }
+  @media (max-width: 880px) { .docket { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 520px) { .docket { grid-template-columns: 1fr; } }
+  .verdict-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 22px 20px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .verdict-badge {
+    align-self: flex-start;
+    font-family: "IBM Plex Mono", monospace; font-weight: 700; font-size: 12.5px;
+    letter-spacing: 0.03em; padding: 5px 11px; border-radius: 5px;
+  }
+  .verdict-card p { font-size: 13.5px; color: var(--ink-muted); margin: 0; }
+  .verdict-card .ex { font-size: 12px; color: var(--ink-muted); font-family: "IBM Plex Mono", monospace; border-top: 1px dashed var(--border); padding-top: 10px; margin-top: auto; }
+  .v-verified { background: var(--verified-bg); color: var(--verified); }
+  .v-contradicted { background: var(--contradicted-bg); color: var(--contradicted); }
+  .v-indeterminate { background: var(--indeterminate-bg); color: var(--indeterminate); }
+  .v-notverifiable { background: var(--notverifiable-bg); color: var(--notverifiable); }
+
+  /* ---------- Gallery ---------- */
+  .gallery {
+    margin-top: 44px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 22px;
+  }
+  @media (max-width: 720px) { .gallery { grid-template-columns: 1fr; } }
+  .gcard {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; box-shadow: var(--shadow);
+  }
+  .gcard img { display: block; width: 100%; height: auto; border-bottom: 1px solid var(--border); }
+  .gcard-wide { display: grid; grid-template-columns: 300px 1fr; }
+  .gcard-wide .gcard-frame { height: 260px; overflow: hidden; border-right: 1px solid var(--border); }
+  .gcard-wide .gcard-frame img { border-bottom: none; }
+  .gcard-wide .gcard-meta { display: flex; flex-direction: column; justify-content: center; padding: 24px 26px; }
+  @media (max-width: 640px) {
+    .gcard-wide { grid-template-columns: 1fr; }
+    .gcard-wide .gcard-frame { height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
+  }
+  .gcard-meta { padding: 14px 16px 16px; }
+  .gcard-title { font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .gcard-desc { font-size: 12.5px; color: var(--ink-muted); margin-top: 5px; }
+  .gcard-pill {
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 700;
+    padding: 3px 8px; border-radius: 5px; white-space: nowrap;
+  }
+
+  /* ---------- Positioning ---------- */
+  .position-grid { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  @media (max-width: 720px) { .position-grid { grid-template-columns: 1fr; } }
+  .position-col h3 { font-family: "Fraunces", serif; font-size: 16px; font-weight: 600; margin: 0 0 14px; }
+  .position-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
+  .position-list li { font-size: 14.5px; color: var(--ink-muted); padding-left: 20px; position: relative; }
+  .position-list.no li::before { content: "✕"; position: absolute; left: 0; color: var(--contradicted); font-weight: 700; font-size: 12px; top: 2px; }
+  .position-list.yes li::before { content: "✓"; position: absolute; left: 0; color: var(--verified); font-weight: 700; font-size: 12px; top: 2px; }
+  .position-list strong { color: var(--ink); }
+
+  /* ---------- Footer / CTA ---------- */
+  .cta-block {
+    background: var(--surface-alt); border: 1px solid var(--border); border-radius: 16px;
+    padding: 52px 44px; text-align: center; margin-top: 0;
+  }
+  .cta-block h2 { margin: 0 auto 14px; max-width: 24ch; }
+  .cta-block p { color: var(--ink-muted); max-width: 52ch; margin: 0 auto 28px; font-size: 15.5px; }
+
+  footer { padding: 40px 0 60px; }
+  .foot-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; color: var(--ink-muted); font-size: 13px; }
+  .foot-links { display: flex; gap: 22px; }
+  .foot-links a { color: var(--ink-muted); text-decoration: none; }
+  .foot-links a:hover { color: var(--ink); }
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+
+<nav class="nav">
+  <div class="wrap">
+    <div class="brand">
+      <span class="brand-mark">A</span>
+      <span class="brand-name">AgentProof</span>
+    </div>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#verdicts">Verdicts</a>
+      <a href="#exhibits">Exhibits</a>
+      <a href="#fit">Fit</a>
+    </div>
+    <a class="nav-cta" href="mailto:hello@agentproof.dev?subject=AgentProof%20pilot">Talk to us</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow"><span class="dot"></span>Independent outcome verification for AI agents</span>
+    <h1 class="headline display">Your agent says it's done.<br><span class="accent-line">Check reality.</span></h1>
+    <div class="hero-grid">
+      <div>
+        <p class="hero-sub">AgentProof never trusts a tool-call response. It re-queries the real system of record — with its own read-only credential — and hands back one of four verdicts: <strong>VERIFIED, CONTRADICTED, INDETERMINATE, NOT&#8288;_&#8288;VERIFIABLE.</strong> Never a probability. Never a guess.</p>
+        <div class="hero-ctas">
+          <a class="btn-primary" href="#exhibits">See a real run &rarr;</a>
+          <a class="btn-secondary" href="mailto:hello@agentproof.dev?subject=AgentProof%20pilot">Book a 15-minute pilot call</a>
+        </div>
+      </div>
+      <div class="exhibit">
+        <div class="exhibit-label"><span>RUN-466e2d0d &middot; refund_and_notify &middot; live agent claim</span></div>
+        <div class="claim-text">&ldquo;I processed the &euro;185.00 refund for Order ORD-1047 (customer C-891) and sent the customer an email confirmation.&rdquo;</div>
+        <div class="checklist">
+          <div class="check-row fail"><span class="mk">&times;</span><span class="lbl">Refund exists</span><span class="meta">expected true, observed false</span></div>
+          <div class="check-row fail"><span class="mk">&times;</span><span class="lbl">Refund status = succeeded</span><span class="meta">observed null</span></div>
+          <div class="check-row pass"><span class="mk">&#10003;</span><span class="lbl">Notification exists</span><span class="meta">C&#8288;-&#8288;891 / ORD&#8288;-&#8288;1047</span></div>
+        </div>
+        <div class="stamp">CONTRADICTED</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section class="block" id="how">
+  <div class="wrap">
+    <div class="kicker">The verification chain</div>
+    <h2 class="section-title">Six steps, none of them the agent's word</h2>
+    <p class="section-sub">The structured task and its expected outcome are created before the agent ever runs, and both the agent and AgentProof receive the identical object independently — the agent can never negotiate what "done" means after the fact.</p>
+    <div class="pipeline">
+      <div class="stage authoritative"><div class="stage-dot">1</div><div class="stage-name">Task</div><div class="stage-desc">Structured order, customer, amount &amp; currency — created once, immutable.</div></div>
+      <div class="stage authoritative"><div class="stage-dot">2</div><div class="stage-name">Expected&nbsp;outcome</div><div class="stage-desc">The same object handed to the agent and to AgentProof, independently.</div></div>
+      <div class="stage"><div class="stage-dot">3</div><div class="stage-name">Agent&nbsp;execution</div><div class="stage-desc">Claude acts against the live system with its own write credential.</div></div>
+      <div class="stage"><div class="stage-dot">4</div><div class="stage-name">Agent&nbsp;claim</div><div class="stage-desc">Free text. Confident. Never itself evidence of anything.</div></div>
+      <div class="stage authoritative"><div class="stage-dot">5</div><div class="stage-name">Independent&nbsp;read</div><div class="stage-desc">A separate read-only credential re-queries the real system of record.</div></div>
+      <div class="stage authoritative"><div class="stage-dot">6</div><div class="stage-name">Verdict</div><div class="stage-desc">One of four. Deterministic. With the full evidence trail attached.</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="verdicts">
+  <div class="wrap">
+    <div class="kicker">The docket</div>
+    <h2 class="section-title">Four outcomes. Never a maybe.</h2>
+    <p class="section-sub">No probabilistic scoring, no confidence interval, no semantic judgment — every predicate is a deterministic equality check against independently observed state.</p>
+    <div class="docket">
+      <div class="verdict-card">
+        <span class="verdict-badge v-verified">VERIFIED</span>
+        <p>Every required proof condition was independently confirmed against the real system of record.</p>
+        <span class="ex">9 / 9 checks passed</span>
+      </div>
+      <div class="verdict-card">
+        <span class="verdict-badge v-contradicted">CONTRADICTED</span>
+        <p>Observed state deterministically conflicts with the expected outcome or the agent's own claim.</p>
+        <span class="ex">refund_exists: expected true, observed false</span>
+      </div>
+      <div class="verdict-card">
+        <span class="verdict-badge v-indeterminate">INDETERMINATE</span>
+        <p>The system of record was unreachable. AgentProof says so — it never defaults to VERIFIED to be agreeable.</p>
+        <span class="ex">evidence source unreachable</span>
+      </div>
+      <div class="verdict-card">
+        <span class="verdict-badge v-notverifiable">NOT_VERIFIABLE</span>
+        <p>The claim couldn't be mapped to a known, checkable schema. The normalizer never guesses.</p>
+        <span class="ex">no confident claim_type match</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="exhibits">
+  <div class="wrap">
+    <div class="kicker">Exhibits</div>
+    <h2 class="section-title">A real run, every verdict, no staging</h2>
+    <p class="section-sub">Five screenshots from one live session against the real Claude API and the real simulator — the same four buttons a buyer can click in a 30-second demo.</p>
+    <div class="gallery">
+      <div class="gcard">
+        <img src="{{IMG_HOME}}" alt="AgentProof home screen with the demo scenario panel and live feed">
+        <div class="gcard-meta">
+          <div class="gcard-title">Demo panel &amp; live feed</div>
+          <div class="gcard-desc">Four deterministic scenarios, one click each. Every run isolated by run_id, even against the same order.</div>
+        </div>
+      </div>
+      <div class="gcard">
+        <img src="{{IMG_VERIFIED}}" alt="Run detail screen showing a VERIFIED verdict with all nine proof checks passing">
+        <div class="gcard-meta">
+          <div class="gcard-title">Genuine success <span class="verdict-badge v-verified gcard-pill">VERIFIED</span></div>
+          <div class="gcard-desc">Refund and notification both genuinely persisted — the baseline case.</div>
+        </div>
+      </div>
+      <div class="gcard">
+        <img src="{{IMG_FALSEACK}}" alt="Run detail screen showing a CONTRADICTED verdict after the system falsely acknowledged a refund">
+        <div class="gcard-meta">
+          <div class="gcard-title">False acknowledgment <span class="verdict-badge v-contradicted gcard-pill">CONTRADICTED</span></div>
+          <div class="gcard-desc">The refund API said "accepted." Nothing was ever persisted. The agent had no way to know.</div>
+        </div>
+      </div>
+      <div class="gcard">
+        <img src="{{IMG_DROPNOTIF}}" alt="Run detail screen showing a CONTRADICTED verdict because the notification silently failed to send">
+        <div class="gcard-meta">
+          <div class="gcard-title">Silent partial failure <span class="verdict-badge v-contradicted gcard-pill">CONTRADICTED</span></div>
+          <div class="gcard-desc">Money moved. The customer never heard about it. Six checks pass, three fail — exactly.</div>
+        </div>
+      </div>
+    </div>
+    <div class="gallery" style="grid-template-columns: 1fr; margin-top: 22px;">
+      <div class="gcard gcard-wide">
+        <div class="gcard-frame">
+          <img src="{{IMG_INDETERMINATE}}" alt="Run detail screen showing an INDETERMINATE verdict because the evidence source was unreachable">
+        </div>
+        <div class="gcard-meta">
+          <div class="gcard-title">Evidence unavailable <span class="verdict-badge v-indeterminate gcard-pill">INDETERMINATE</span></div>
+          <div class="gcard-desc" style="margin-top: 8px; font-size: 13.5px;">The refund genuinely succeeded — AgentProof's own read path was down. Every one of the nine checks reports "unreachable," not a false pass and not a false fail. This is the line that separates a verifier from a rubber stamp.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="fit">
+  <div class="wrap">
+    <div class="kicker">Positioning</div>
+    <h2 class="section-title">What this is, and isn't</h2>
+    <div class="position-grid">
+      <div class="position-col">
+        <h3>AgentProof is</h3>
+        <ul class="position-list yes">
+          <li><strong>An independent verifier.</strong> A separate credential, a separate re-query, a separate verdict — never a read of the agent's own tool-call result.</li>
+          <li><strong>Deterministic.</strong> Every predicate is a literal equality check. No confidence scores to argue with.</li>
+          <li><strong>Evidence-first.</strong> Every verdict ships with the full trail — what was checked, when, with which credential.</li>
+        </ul>
+      </div>
+      <div class="position-col">
+        <h3>AgentProof is not</h3>
+        <ul class="position-list no">
+          <li>Observability or a logging dashboard.</li>
+          <li>A testing or eval framework for prompts.</li>
+          <li>An orchestration engine, guardrail layer, or agent framework.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <div class="cta-block">
+      <h2 class="section-title display">Watch it catch a lie in 30 seconds.</h2>
+      <p>One click runs a real Claude agent against a real system that tells it a refund succeeded when it didn't. AgentProof catches it independently, live, in front of you.</p>
+      <a class="btn-primary" href="mailto:hello@agentproof.dev?subject=AgentProof%20pilot%20request&amp;body=We'd%20like%20to%20see%20a%20live%2030-second%20demo.">Request a live demo &rarr;</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-row">
+    <span>AgentProof &middot; V0 &middot; refund verification scenario</span>
+    <div class="foot-links">
+      <a href="#how">How it works</a>
+      <a href="#verdicts">Verdicts</a>
+      <a href="#exhibits">Exhibits</a>
+    </div>
+  </div>
+</footer>
