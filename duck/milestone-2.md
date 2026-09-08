@@ -194,6 +194,36 @@ repeated-run/multiple-refund case").
 the commit the automated suite, frontend build, and all four live browser runs above were run
 against.
 
+## Post-review correction (same milestone)
+
+Review caught an independence defect in the design above: `app/adapter.py`'s evidence read calls
+were passing `scenario_mode` as a query parameter, meaning AgentProof's own verifier was telling
+the simulator what failure to simulate — the verifier configuring the very fault it's supposed to
+independently catch, not observing an environment fault that exists independently of it.
+
+Fixed by moving failure-mode configuration entirely onto the simulator side: a new
+`SimulatorRunConfig` table (`run_id` primary key) is upserted by the write endpoints as they're
+called — configuring the run's environment the same way a real chaos-engineering fault injector
+would be, ahead of/alongside the traffic it affects, never told what to fake by the client doing
+the observing. `app/simulator/reads.py`'s `read_refunds`/`read_messages` no longer accept
+`scenario_mode` at all; they consult the stored config by `run_id` alone.
+`EvidenceAdapter.collect_evidence` dropped the `scenario_mode` parameter entirely — AgentProof's
+verifier now always performs the same neutral read and only ever observes the resulting system
+state or an `httpx` error, with no way to know or influence *why* a read failed.
+
+**Tests run after the fix:** full suite still 15/15
+(`test_scenario_read_unavailable_is_indeterminate` was rewritten to confirm persisted state via a
+direct DB query instead of a `scenario_mode`-bypassed read, then assert the read endpoint returns
+`503` with no bypass available). **Live confirmation:** a manual read call against a
+`READ_UNAVAILABLE` run, deliberately attempting `scenario_mode=NORMAL` as a bypass, still returned
+`503` — then the same run verified end-to-end through the real API to INDETERMINATE, and a second
+live run under `FALSE_ACK` was re-confirmed CONTRADICTED to show the write-side behavior was
+unaffected.
+
+**Corrected Implementation SHA:** `f5004497fab1b20d2f7cc53e32b835d15d432559` — supersedes the SHA
+above for the read-independence property specifically; the rest of this Duck's evidence still
+holds against the original SHA and was re-confirmed passing against this one.
+
 ## Next Step
 
 Await explicit human approval before starting Milestone 3 (extraction of proven generic
