@@ -401,13 +401,30 @@ def test_scenario_read_unavailable_is_indeterminate(client, monkeypatch):
     _write_refund(run_id, scenario_mode="READ_UNAVAILABLE")
     _write_notification(run_id, scenario_mode="READ_UNAVAILABLE")
 
-    # Confirm the data really is there before we prove it's unreadable.
-    real_check = httpx.get(
+    # Confirm the data really is there — via the database directly, not the
+    # read endpoint. The read endpoint takes no scenario_mode of its own
+    # (failure-mode configuration lives in the simulator/run environment,
+    # not something the verifier can supply to bypass it — see
+    # app/simulator/reads.py), so for this run it is now genuinely,
+    # unconditionally blocked, the same as it would be for anyone.
+    from app.database import SessionLocal
+    from app.models import Refund
+
+    db = SessionLocal()
+    try:
+        persisted = db.query(Refund).filter(Refund.run_id == run_id).all()
+        assert len(persisted) == 1
+    finally:
+        db.close()
+
+    # And confirm the read endpoint really is blocked for this run — no
+    # scenario_mode param exists to route around it.
+    blocked = httpx.get(
         f"{settings.simulator_base_url}/simulator/read/refunds",
-        params={"order_id": "ORD-1047", "customer_id": "C-891", "run_id": run_id, "scenario_mode": "NORMAL"},
+        params={"order_id": "ORD-1047", "customer_id": "C-891", "run_id": run_id},
         headers=_headers("verifier"),
     )
-    assert len(real_check.json()) == 1
+    assert blocked.status_code == 503
 
     _patch_normalizer(monkeypatch, VALID_NORMALIZER_OUTPUT)
     client.post(f"/api/runs/{run_id}/claim", json={})

@@ -10,10 +10,12 @@ same order/customer can have more than one refund or message on record
 must correlate to the specific run being verified rather than picking the
 first match (see docs/PROOF_MODEL.md § Evidence).
 
-scenario_mode drives deterministic failure injection: under
-READ_UNAVAILABLE, these endpoints return 503 regardless of what is actually
-persisted, simulating the system of record being unreachable to AgentProof's
-independent read path (docs/MVP_SCOPE.md § Milestone 2).
+These endpoints take NO scenario_mode of their own — AgentProof's verifier
+always performs the same neutral read and only ever observes the resulting
+system state or failure. Whether this run's read path is "up" is a property
+of the simulator/run environment (SimulatorRunConfig, configured by the
+write endpoints as they're called — see app/simulator/actions.py), looked
+up here by run_id alone.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,12 +23,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Customer, Message, Order, Refund
-from app.scenario import READ_UNAVAILABLE, ScenarioMode
+from app.models import Customer, Message, Order, Refund, SimulatorRunConfig
+from app.scenario import READ_UNAVAILABLE
 from app.security import require_verifier_read_credential
 from app.simulator.schemas import CustomerOut, MessageOut, OrderOut, RefundOut
 
 router = APIRouter(prefix="/simulator/read", tags=["simulator-reads"])
+
+
+def _check_run_environment_available(db: Session, run_id: str) -> None:
+    config = db.get(SimulatorRunConfig, run_id)
+    if config is not None and config.scenario_mode == READ_UNAVAILABLE:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "System of record unavailable.")
 
 
 @router.get("/orders/{order_id}", response_model=OrderOut)
@@ -58,12 +66,10 @@ def read_refunds(
     order_id: str,
     customer_id: str,
     run_id: str,
-    scenario_mode: ScenarioMode = "NORMAL",
     db: Session = Depends(get_db),
     _credential: str = Depends(require_verifier_read_credential),
 ):
-    if scenario_mode == READ_UNAVAILABLE:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "System of record unavailable.")
+    _check_run_environment_available(db, run_id)
     stmt = select(Refund).where(
         Refund.order_id == order_id, Refund.customer_id == customer_id, Refund.run_id == run_id
     )
@@ -75,12 +81,10 @@ def read_messages(
     order_id: str,
     customer_id: str,
     run_id: str,
-    scenario_mode: ScenarioMode = "NORMAL",
     db: Session = Depends(get_db),
     _credential: str = Depends(require_verifier_read_credential),
 ):
-    if scenario_mode == READ_UNAVAILABLE:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "System of record unavailable.")
+    _check_run_environment_available(db, run_id)
     stmt = select(Message).where(
         Message.order_id == order_id, Message.customer_id == customer_id, Message.run_id == run_id
     )

@@ -49,7 +49,6 @@ class EvidenceAdapter(Protocol):
         claim: RefundAndNotifyClaim,
         expected_outcome: ExpectedOutcome,
         run_id: str,
-        scenario_mode: str,
     ) -> EvidenceCollectionResult: ...
 
 
@@ -84,7 +83,6 @@ class PaymentCustomerEvidenceAdapter:
         claim: RefundAndNotifyClaim,
         expected_outcome: ExpectedOutcome,
         run_id: str,
-        scenario_mode: str = "NORMAL",
     ) -> EvidenceCollectionResult:
         from datetime import datetime, timezone
 
@@ -96,11 +94,18 @@ class PaymentCustomerEvidenceAdapter:
         # so a repeated run, a retry, or a prior run in a different scenario
         # mode against the same order/customer can never be mistaken for
         # this run's evidence (see docs/PROOF_MODEL.md § Evidence).
+        #
+        # No scenario_mode is sent here, deliberately: failure-mode
+        # configuration is a property of the simulator/run environment
+        # (see app/simulator/actions.py's SimulatorRunConfig upsert), never
+        # something the verifier supplies. AgentProof always performs this
+        # same neutral read and only observes the resulting system state or
+        # failure (an httpx.HTTPError below, caught the same way regardless
+        # of *why* the read failed).
         common_params = {
             "order_id": expected_outcome.order_id,
             "customer_id": expected_outcome.customer_id,
             "run_id": run_id,
-            "scenario_mode": scenario_mode,
         }
 
         def checked_at() -> str:

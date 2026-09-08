@@ -103,9 +103,13 @@ defaults to the closest type, partially fills required values, or fabricates mis
   (verification) endpoints. Every write carries a caller-supplied `run_id` (stamped by the
   agent's tool-execution harness, never the model) and every read the evidence adapter performs
   is scoped to that same `run_id` — evidence is correlated to the specific run, not just to the
-  order/customer. Write and read behavior is further controlled by a `scenario_mode`
-  (`NORMAL`/`FALSE_ACK`/`DROP_NOTIFICATION`/`READ_UNAVAILABLE`, set on `Task` at creation time)
-  for deterministic, repeatable failure injection — see `docs/MVP_SCOPE.md` § Milestone 2.
+  order/customer. Writes also carry a `scenario_mode`
+  (`NORMAL`/`FALSE_ACK`/`DROP_NOTIFICATION`/`READ_UNAVAILABLE`, set on `Task` at creation time) for
+  deterministic, repeatable failure injection — see `docs/MVP_SCOPE.md` § Milestone 2. Read
+  endpoints take no `scenario_mode` of their own: whether a run's read path is "up" is a property
+  of the simulator/run environment (`SimulatorRunConfig`, configured by the write endpoints as
+  they're called), looked up server-side by `run_id` alone. AgentProof's verifier always performs
+  the same neutral read and only ever observes the resulting system state or failure.
 
 ## Evidence adapter interface
 

@@ -238,7 +238,7 @@ async def verify_run(run_id: str, db: Session = Depends(get_db)):
     claim = RefundAndNotifyClaim(**run.normalized_claim)
 
     adapter = PaymentCustomerEvidenceAdapter()
-    collection = await adapter.collect_evidence(claim, expected_outcome, run.id, task.scenario_mode)
+    collection = await adapter.collect_evidence(claim, expected_outcome, run.id)
 
     verdict, predicate_results = evaluate(
         proof_definition, expected_outcome, collection.normalized(), collection.unreachable_fields()

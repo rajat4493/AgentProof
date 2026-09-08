@@ -81,6 +81,24 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class SimulatorRunConfig(Base):
+    """A property of the simulator/run environment, not of any single
+    request — deliberately NOT something AgentProof's verifier supplies on
+    its read calls. Written by the simulator's own write (action) endpoints
+    as they're called (the same way a real chaos-engineering fault injector
+    would be configured against a target environment ahead of/alongside
+    real traffic, not told what to fake by the client doing the observing).
+    Read endpoints consult this by run_id alone to decide whether they are
+    "up" for this run — AgentProof always performs the same neutral read
+    and only ever observes the resulting system state or failure."""
+
+    __tablename__ = "simulator_run_config"
+
+    run_id: Mapped[str] = mapped_column(String, primary_key=True)
+    scenario_mode: Mapped[str] = mapped_column(String, nullable=False, default="NORMAL")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
 # --- AgentProof: task / run / evidence trail ----------------------------------
 
 
