@@ -2,8 +2,26 @@
 
 ## Proof definition format
 
-Proof definitions live in code/config for V0 — no visual builder. A proof definition is a JSON
-document keyed by `claim_type`, listing the mandatory checks a verdict is computed from.
+Proof definitions live in code for V0 — no visual builder. As of Milestone 3, a proof definition
+is a typed `ProofDefinition` (`app/proof.py`), not an implicit JSON convention — `ProofCheck` and
+`ProofDefinition` are importable Pydantic models with the same shape this document has always
+described, so a visual builder could edit the same structure later without changing anything
+downstream:
+
+```python
+class ProofCheck(BaseModel):
+    field: str
+    operator: str = "equals"
+    expected: Any | None = None   # exactly one of expected/source is set —
+    source: str | None = None     # enforced by a model validator
+
+class ProofDefinition(BaseModel):
+    proof_id: str
+    claim_type: str
+    required_checks: list[ProofCheck]
+```
+
+`refund_completed_v1`, still the only proof definition in V0:
 
 ```json
 {
@@ -11,28 +29,29 @@ document keyed by `claim_type`, listing the mandatory checks a verdict is comput
   "claim_type": "refund_and_notify",
   "required_checks": [
     { "field": "refund_exists", "operator": "equals", "expected": true },
-    { "field": "refund.order_id", "operator": "equals", "source": "task.order_id" },
-    { "field": "refund.customer_id", "operator": "equals", "source": "task.customer_id" },
-    { "field": "refund.amount", "operator": "equals", "source": "task.expected_amount" },
-    { "field": "refund.currency", "operator": "equals", "source": "task.currency" },
+    { "field": "refund.order_id", "operator": "equals", "source": "order_id" },
+    { "field": "refund.customer_id", "operator": "equals", "source": "customer_id" },
+    { "field": "refund.amount_minor_units", "operator": "equals", "source": "expected_amount_minor_units" },
+    { "field": "refund.currency", "operator": "equals", "source": "currency" },
     { "field": "refund.status", "operator": "equals", "expected": "succeeded" },
-    { "field": "notification.customer_id", "operator": "equals", "source": "task.customer_id" },
-    { "field": "notification.order_id", "operator": "equals", "source": "task.order_id" },
-    { "field": "notification.exists", "operator": "equals", "source": "task.notification_required" }
+    { "field": "notification.customer_id", "operator": "equals", "source": "customer_id" },
+    { "field": "notification.order_id", "operator": "equals", "source": "order_id" },
+    { "field": "notification.exists", "operator": "equals", "source": "notification_required" }
   ]
 }
 ```
 
 Each check compares an observed evidence field against either a literal `expected` value or a
-`source` reference into the original structured task (never into the agent's claim). Checks must
+`source` reference into the original structured task/`ExpectedOutcome` (never into the agent's
+claim) — `ProofCheck`'s model validator rejects a check that sets both or neither. Checks must
 correlate entities (e.g. a notification must be tied to the correct `customer_id` **and**
 `order_id`) — a bare `notification_exists = true` without correlation is not a valid check.
 
 Proof definitions are versioned (`proof_id` includes a version suffix, e.g. `_v1`) and persisted
 alongside every run so historical runs remain interpretable even if the definition later changes.
-
-Proof definitions are architected so that a visual builder could edit this same JSON shape later
-— but no builder is built in V0.
+They're registered in `PROOF_DEFINITIONS_BY_CLAIM_TYPE: dict[str, ProofDefinition]` — still one
+entry — so a second claim type's proof definition could be added without touching the verdict
+engine or `GET /api/proofs`.
 
 ## Verdicts
 
@@ -67,12 +86,14 @@ DETERMINISTIC ENGINE
 VERDICT
 ```
 
-The normalizer selects `claim_type` from a fixed, known list and fills only the fields that
-claim type's Pydantic schema declares. It never invents predicates, infers new success
-conditions, or touches the expected outcome. Its output is validated by a strict Pydantic model:
-unknown fields, extra fields, missing required fields, or an unrecognized `claim_type` all fail
-validation and the run terminates as NOT_VERIFIABLE — the normalizer never guesses or partially
-fills values.
+The normalizer selects `claim_type` from a fixed, known list — as of Milestone 3, the list is
+`app.claims.CLAIM_SCHEMAS: dict[str, type[BaseModel]]`, a `claim_type -> Pydantic model` registry
+(still one entry, `refund_and_notify -> RefundAndNotifyClaim`) — and fills only the fields that
+claim type's schema declares. It never invents predicates, infers new success conditions, or
+touches the expected outcome. Its output is validated by looking up and instantiating the
+registered Pydantic model: unknown fields, extra fields, missing required fields, or an
+unrecognized `claim_type` (absent from the registry) all fail validation and the run terminates
+as NOT_VERIFIABLE — the normalizer never guesses or partially fills values.
 
 Note the amount extracted from the claim (`amount_claimed`) is retained for display/audit only.
 It is never substituted for `task.expected_amount` in a check — the engine always compares
@@ -105,12 +126,26 @@ class EvidenceAdapter(Protocol):
     name: str
     async def collect_evidence(
         self,
-        claim: AgentClaim,
+        claim: BaseModel,
         expected_outcome: ExpectedOutcome,
-    ) -> list[Evidence]:
+        run_id: str,
+    ) -> EvidenceCollectionResult:
         ...
 ```
 
-V0 implements exactly one adapter, for the payment/customer simulator. The interface is written
-generically so future adapters (not built in V0) could implement it without changing the verdict
-engine or proof definition format.
+V0 implements exactly one adapter (`PaymentCustomerEvidenceAdapter`), for the payment/customer
+simulator. The interface is written generically so future adapters (not built in V0) could
+implement it without changing the verdict engine or proof definition format. As of Milestone 3,
+`app.adapter.ADAPTER_REGISTRY: dict[str, EvidenceAdapter]` maps `claim_type -> adapter instance`
+(still one entry) so `verify_run()` resolves the adapter generically instead of hardcoding the
+concrete class — the same registry shape as the claim-schema and proof-definition registries
+above. `claim`'s evidence adapter interface argument is typed generically (`BaseModel`, not any
+one claim's Pydantic model) for the same reason.
+
+### The three registries stay in lockstep
+
+Every claim type the normalizer can produce must be resolvable to both a proof definition and an
+evidence adapter — `CLAIM_SCHEMAS`, `PROOF_DEFINITIONS_BY_CLAIM_TYPE`, and `ADAPTER_REGISTRY` are
+all keyed by the same `claim_type` strings, checked by `tests/test_primitives.py`. Adding a
+second claim type (not done in V0) means adding one entry to each of the three — no change to
+`app/claim_normalizer.py`, `app/verdict_engine.py`, or `app/main.py`'s `verify_run()` logic.

@@ -65,11 +65,9 @@ class TaskResponse(BaseModel):
 
 
 # --- Claim normalization ------------------------------------------------------
-# claim_type is selected by the LLM from this fixed set. Each claim type has
-# its own strict schema. The LLM may only populate fields declared here — it
-# may never invent predicates or influence the verdict.
-
-KNOWN_CLAIM_TYPES = ("refund_and_notify",)
+# claim_type is selected by the LLM from a fixed set (app.claims.CLAIM_SCHEMAS).
+# Each claim type has its own strict schema. The LLM may only populate fields
+# declared here — it may never invent predicates or influence the verdict.
 
 
 class RefundAndNotifyClaim(BaseModel):

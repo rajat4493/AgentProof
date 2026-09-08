@@ -14,10 +14,10 @@ import json
 from typing import Protocol
 
 import anthropic
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
+from app.claims import CLAIM_SCHEMAS, KNOWN_CLAIM_TYPES
 from app.config import settings
-from app.schemas import KNOWN_CLAIM_TYPES, RefundAndNotifyClaim
 
 NORMALIZER_MODEL = settings.claude_model
 
@@ -37,6 +37,11 @@ leave the other fields null. Never guess a value you cannot support from \
 the claim text.
 """
 
+# The tool schema's fields are specific to today's one claim type
+# (refund_and_notify) — a second claim type would need its own field set
+# here too. What's generic is *validation*: normalize_claim() below looks
+# up the Pydantic model for whatever claim_type comes back from
+# app.claims.CLAIM_SCHEMAS, rather than hardcoding one model class.
 RECORD_CLAIM_TOOL = {
     "name": "record_normalized_claim",
     "description": "Record the structured interpretation of the agent's free-text claim.",
@@ -87,7 +92,7 @@ def real_normalizer_caller(client: anthropic.Anthropic) -> NormalizerCaller:
 
 
 class NormalizationResult:
-    def __init__(self, claim: RefundAndNotifyClaim | None, error: str | None):
+    def __init__(self, claim: BaseModel | None, error: str | None):
         self.claim = claim
         self.error = error
 
@@ -107,14 +112,15 @@ def normalize_claim(raw_claim: str, normalizer_caller: NormalizerCaller | None =
         return NormalizationResult(None, f"Normalizer call failed: {exc}")
 
     claim_type = raw_output.get("claim_type")
-    if claim_type not in KNOWN_CLAIM_TYPES:
+    schema = CLAIM_SCHEMAS.get(claim_type)
+    if schema is None:
         return NormalizationResult(None, f"Claim could not be mapped to a known claim_type (got {claim_type!r}).")
 
     # Drop nulls so Pydantic reports a clean "missing field" rather than a type error.
     candidate = {k: v for k, v in raw_output.items() if v is not None}
 
     try:
-        claim = RefundAndNotifyClaim(**candidate)
+        claim = schema(**candidate)
     except ValidationError as exc:
         return NormalizationResult(None, f"Normalized claim failed schema validation: {exc}")
 

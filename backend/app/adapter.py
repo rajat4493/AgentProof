@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 import httpx
+from pydantic import BaseModel
 
 from app.config import settings
 from app.schemas import ExpectedOutcome, RefundAndNotifyClaim
@@ -41,12 +42,17 @@ class EvidenceCollectionResult:
 
 
 class EvidenceAdapter(Protocol):
+    """The generic evidence adapter interface (docs/PROOF_MODEL.md).
+    `claim` is typed generically here — a future claim type's adapter would
+    receive its own normalized claim model, not necessarily
+    RefundAndNotifyClaim."""
+
     id: str
     name: str
 
     async def collect_evidence(
         self,
-        claim: RefundAndNotifyClaim,
+        claim: BaseModel,
         expected_outcome: ExpectedOutcome,
         run_id: str,
     ) -> EvidenceCollectionResult: ...
@@ -168,3 +174,13 @@ class PaymentCustomerEvidenceAdapter:
             raw=raw,
             evidence=evidence,
         )
+
+
+# Evidence adapter registry — a claim_type -> adapter instance, extracted per
+# docs/MVP_SCOPE.md § Milestone 3 so app/main.py's verify_run() resolves the
+# adapter generically instead of hardcoding PaymentCustomerEvidenceAdapter.
+# Still exactly one entry; a second claim type would register its own
+# adapter here without verify_run() changing.
+ADAPTER_REGISTRY: dict[str, EvidenceAdapter] = {
+    "refund_and_notify": PaymentCustomerEvidenceAdapter(),
+}

@@ -6,9 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.adapter import PaymentCustomerEvidenceAdapter
+from app.adapter import ADAPTER_REGISTRY
 from app.agent import run_agent
 from app.claim_normalizer import normalize_claim
+from app.claims import CLAIM_SCHEMAS
 from app.database import Base, engine, get_db
 from app.models import Run, RunStatus, Task, Verdict
 from app.proof import PROOF_DEFINITIONS_BY_CLAIM_TYPE
@@ -230,22 +231,23 @@ async def verify_run(run_id: str, db: Session = Depends(get_db)):
     if proof_definition is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"No proof definition for claim_type {run.claim_type!r}")
 
+    claim_schema = CLAIM_SCHEMAS.get(run.claim_type)
+    adapter = ADAPTER_REGISTRY.get(run.claim_type)
+    if claim_schema is None or adapter is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"No claim schema/adapter for claim_type {run.claim_type!r}")
+
     task = run.task
     expected_outcome = _expected_outcome(task)
+    claim = claim_schema(**run.normalized_claim)
 
-    from app.schemas import RefundAndNotifyClaim
-
-    claim = RefundAndNotifyClaim(**run.normalized_claim)
-
-    adapter = PaymentCustomerEvidenceAdapter()
     collection = await adapter.collect_evidence(claim, expected_outcome, run.id)
 
     verdict, predicate_results = evaluate(
         proof_definition, expected_outcome, collection.normalized(), collection.unreachable_fields()
     )
 
-    run.proof_definition_id = proof_definition["proof_id"]
-    run.proof_definition_version = proof_definition["proof_id"].split("_v")[-1]
+    run.proof_definition_id = proof_definition.proof_id
+    run.proof_definition_version = proof_definition.proof_id.split("_v")[-1]
     run.systems_queried = collection.systems_queried
     run.credential_role_used = collection.credential_role_used
     run.raw_evidence = collection.raw

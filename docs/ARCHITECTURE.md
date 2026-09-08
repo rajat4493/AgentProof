@@ -121,15 +121,21 @@ class EvidenceAdapter(Protocol):
     name: str
     async def collect_evidence(
         self,
-        claim: AgentClaim,
+        claim: BaseModel,
         expected_outcome: ExpectedOutcome,
-    ) -> list[Evidence]:
+        run_id: str,
+    ) -> EvidenceCollectionResult:
         ...
 ```
 
 No connector marketplace, OAuth platform, generic integration registry, or adapters for
 unimplemented scenarios (incident, identity) are built in V0. The interface exists to prove it
-can generalize later, not to generalize now.
+can generalize later, not to generalize now — as of Milestone 3, that proof takes the concrete
+form of `app.adapter.ADAPTER_REGISTRY: dict[str, EvidenceAdapter]` (a `claim_type -> adapter`
+lookup, still one entry) so `app/main.py` never hardcodes the concrete adapter class. This is one
+of three parallel registries — claim schema, proof definition, evidence adapter — that resolve a
+`claim_type` to everything needed to verify it; see `docs/PROOF_MODEL.md` § "The three registries
+stay in lockstep."
 
 ## Verdict engine
 
