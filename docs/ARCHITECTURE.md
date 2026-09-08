@@ -100,7 +100,12 @@ defaults to the closest type, partially fills required values, or fabricates mis
   credential and produces a natural-language completion claim.
 - **Simulator** — a stateful payment/customer system of record (part of the backend for V0):
   customers, orders, refunds, messages. Exposes separate write (action) and read-only
-  (verification) endpoints, and supports deterministic failure-injection modes.
+  (verification) endpoints. Every write carries a caller-supplied `run_id` (stamped by the
+  agent's tool-execution harness, never the model) and every read the evidence adapter performs
+  is scoped to that same `run_id` — evidence is correlated to the specific run, not just to the
+  order/customer. Write and read behavior is further controlled by a `scenario_mode`
+  (`NORMAL`/`FALSE_ACK`/`DROP_NOTIFICATION`/`READ_UNAVAILABLE`, set on `Task` at creation time)
+  for deterministic, repeatable failure injection — see `docs/MVP_SCOPE.md` § Milestone 2.
 
 ## Evidence adapter interface
 

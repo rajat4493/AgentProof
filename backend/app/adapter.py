@@ -45,8 +45,23 @@ class EvidenceAdapter(Protocol):
     name: str
 
     async def collect_evidence(
-        self, claim: RefundAndNotifyClaim, expected_outcome: ExpectedOutcome
+        self,
+        claim: RefundAndNotifyClaim,
+        expected_outcome: ExpectedOutcome,
+        run_id: str,
+        scenario_mode: str,
     ) -> EvidenceCollectionResult: ...
+
+
+def _most_recent(records: list[dict]) -> dict | None:
+    """Records are already scoped to this run_id by the read endpoint
+    (app/simulator/reads.py), so normally there is at most one. If more than
+    one somehow shares a run_id, take the most recently created rather than
+    an arbitrary "first" — and this branch existing at all is itself a
+    signal worth investigating, not a case to silently paper over."""
+    if not records:
+        return None
+    return max(records, key=lambda r: r["created_at"])
 
 
 class PaymentCustomerEvidenceAdapter:
@@ -65,13 +80,28 @@ class PaymentCustomerEvidenceAdapter:
         self.credential = credential or settings.verifier_read_credential
 
     async def collect_evidence(
-        self, claim: RefundAndNotifyClaim, expected_outcome: ExpectedOutcome
+        self,
+        claim: RefundAndNotifyClaim,
+        expected_outcome: ExpectedOutcome,
+        run_id: str,
+        scenario_mode: str = "NORMAL",
     ) -> EvidenceCollectionResult:
         from datetime import datetime, timezone
 
         headers = {"X-AgentProof-Credential": self.credential}
         raw: dict[str, Any] = {}
         evidence: list[Evidence] = []
+
+        # Evidence is scoped to this specific run — not just order/customer —
+        # so a repeated run, a retry, or a prior run in a different scenario
+        # mode against the same order/customer can never be mistaken for
+        # this run's evidence (see docs/PROOF_MODEL.md § Evidence).
+        common_params = {
+            "order_id": expected_outcome.order_id,
+            "customer_id": expected_outcome.customer_id,
+            "run_id": run_id,
+            "scenario_mode": scenario_mode,
+        }
 
         def checked_at() -> str:
             return datetime.now(timezone.utc).isoformat()
@@ -80,11 +110,7 @@ class PaymentCustomerEvidenceAdapter:
             refunds_reachable = True
             refunds_payload: list[dict] = []
             try:
-                resp = await client.get(
-                    "/simulator/read/refunds",
-                    params={"order_id": expected_outcome.order_id, "customer_id": expected_outcome.customer_id},
-                    headers=headers,
-                )
+                resp = await client.get("/simulator/read/refunds", params=common_params, headers=headers)
                 resp.raise_for_status()
                 refunds_payload = resp.json()
             except httpx.HTTPError:
@@ -94,11 +120,7 @@ class PaymentCustomerEvidenceAdapter:
             messages_reachable = True
             messages_payload: list[dict] = []
             try:
-                resp = await client.get(
-                    "/simulator/read/messages",
-                    params={"order_id": expected_outcome.order_id, "customer_id": expected_outcome.customer_id},
-                    headers=headers,
-                )
+                resp = await client.get("/simulator/read/messages", params=common_params, headers=headers)
                 resp.raise_for_status()
                 messages_payload = resp.json()
             except httpx.HTTPError:
@@ -108,7 +130,7 @@ class PaymentCustomerEvidenceAdapter:
         ts = checked_at()
 
         if refunds_reachable:
-            refund = refunds_payload[0] if refunds_payload else None
+            refund = _most_recent(refunds_payload)
             evidence.append(Evidence(SYSTEM_PAYMENT_CUSTOMER, "refund_exists", refund is not None, True, ts))
             evidence.append(Evidence(SYSTEM_PAYMENT_CUSTOMER, "refund.order_id", refund["order_id"] if refund else None, True, ts))
             evidence.append(Evidence(SYSTEM_PAYMENT_CUSTOMER, "refund.customer_id", refund["customer_id"] if refund else None, True, ts))
@@ -127,7 +149,7 @@ class PaymentCustomerEvidenceAdapter:
                 evidence.append(Evidence(SYSTEM_PAYMENT_CUSTOMER, field, None, False, ts))
 
         if messages_reachable:
-            message = messages_payload[0] if messages_payload else None
+            message = _most_recent(messages_payload)
             evidence.append(Evidence(SYSTEM_PAYMENT_CUSTOMER, "notification.exists", message is not None, True, ts))
             evidence.append(Evidence(SYSTEM_PAYMENT_CUSTOMER, "notification.customer_id", message["customer_id"] if message else None, True, ts))
             evidence.append(Evidence(SYSTEM_PAYMENT_CUSTOMER, "notification.order_id", message["order_id"] if message else None, True, ts))

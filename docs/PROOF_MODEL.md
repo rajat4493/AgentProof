@@ -86,6 +86,17 @@ returned. Both raw evidence (the verbatim API response) and normalized evidence 
 proof definition's checks operate on) are persisted per run, together with which system was
 queried, when, and which credential role was used.
 
+**Evidence is correlated to the specific run, not just to the order/customer.** The same
+order/customer can have more than one refund or message on record — a repeated run, a retry, or
+a prior run in a different demo scenario mode — so the evidence adapter never selects "the first
+matching record" for a given `(order_id, customer_id)`. Every simulator write is tagged with a
+`run_id` (stamped by the agent's tool-execution harness — never something the model supplies or
+could get wrong, the same way the agent's write credential is a harness concern, not a model
+concern), and every simulator read the adapter performs is scoped to that same `run_id`. This
+guarantees a run's verdict reflects only its own evidence, even when the same demo order/customer
+is reused across many runs (see the correlation fix and its test in the Milestone 2 Duck
+artifact, `/duck/milestone-2.md`).
+
 ## Evidence adapter interface
 
 ```python

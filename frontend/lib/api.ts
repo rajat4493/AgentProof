@@ -1,5 +1,7 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
+export type ScenarioMode = "NORMAL" | "FALSE_ACK" | "DROP_NOTIFICATION" | "READ_UNAVAILABLE";
+
 export type Task = {
   id: string;
   order_id: string;
@@ -8,6 +10,7 @@ export type Task = {
   currency: string;
   notification_required: boolean;
   original_request: string;
+  scenario_mode: ScenarioMode;
   created_at: string;
 };
 
@@ -66,6 +69,7 @@ export function createTask(body: {
   currency: string;
   notification_required: boolean;
   original_request: string;
+  scenario_mode?: ScenarioMode;
 }) {
   return request<Task>("/api/tasks", { method: "POST", body: JSON.stringify(body) });
 }

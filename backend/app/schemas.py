@@ -11,6 +11,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.scenario import ScenarioMode
+
 
 # --- Structured task / expected outcome --------------------------------------
 # This is the single object both the agent and AgentProof receive. It is
@@ -26,6 +28,10 @@ class TaskCreateRequest(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
     notification_required: bool = True
     original_request: str
+    # Demo/test control only (docs/MVP_SCOPE.md § Milestone 2) — deliberately
+    # NOT part of ExpectedOutcome below, which stays the pure business-outcome
+    # contract and is never touched by test-mode concerns.
+    scenario_mode: ScenarioMode = "NORMAL"
 
 
 class ExpectedOutcome(BaseModel):
@@ -54,6 +60,7 @@ class TaskResponse(BaseModel):
     currency: str
     notification_required: bool
     original_request: str
+    scenario_mode: str
     created_at: datetime
 
 

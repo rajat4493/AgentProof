@@ -98,12 +98,18 @@ def real_claude_caller(client: anthropic.Anthropic) -> ClaudeCaller:
     return call
 
 
-def _execute_tool(name: str, tool_input: dict, http_client: httpx.Client) -> dict:
+def _execute_tool(
+    name: str, tool_input: dict, http_client: httpx.Client, run_id: str, scenario_mode: str
+) -> dict:
+    # run_id and scenario_mode are stamped here by the harness — never
+    # exposed to the LLM's tool schema, never something the model supplies
+    # or could get wrong. The agent has no idea either of these exists.
+    payload = {**tool_input, "run_id": run_id, "scenario_mode": scenario_mode}
     headers = {"X-AgentProof-Credential": settings.agent_write_credential}
     if name == "create_refund":
-        resp = http_client.post("/simulator/actions/refunds", json=tool_input, headers=headers)
+        resp = http_client.post("/simulator/actions/refunds", json=payload, headers=headers)
     elif name == "send_notification":
-        resp = http_client.post("/simulator/actions/notifications", json=tool_input, headers=headers)
+        resp = http_client.post("/simulator/actions/notifications", json=payload, headers=headers)
     else:
         raise ValueError(f"Unknown tool: {name}")
     resp.raise_for_status()
@@ -113,6 +119,8 @@ def _execute_tool(name: str, tool_input: dict, http_client: httpx.Client) -> dic
 def run_agent(
     expected_outcome: ExpectedOutcome,
     original_request: str,
+    run_id: str,
+    scenario_mode: str = "NORMAL",
     claude_caller: ClaudeCaller | None = None,
 ) -> dict:
     """Drive the agent to completion. Returns {"raw_claim": str, "transcript": list}."""
@@ -148,7 +156,7 @@ def run_agent(
                 if block.type != "tool_use":
                     continue
                 try:
-                    result = _execute_tool(block.name, block.input, http_client)
+                    result = _execute_tool(block.name, block.input, http_client, run_id, scenario_mode)
                     tool_results.append(
                         {"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(result)}
                     )

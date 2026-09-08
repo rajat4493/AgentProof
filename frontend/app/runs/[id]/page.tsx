@@ -35,7 +35,17 @@ export default function RunDetailPage() {
         <Link href="/" className="text-sm" style={{ color: "var(--accent)" }}>
           ← All runs
         </Link>
-        <VerdictBadge verdict={run.verdict} />
+        <div className="flex items-center gap-2">
+          {task.scenario_mode !== "NORMAL" && (
+            <span
+              className="mono text-xs rounded px-2 py-1 border"
+              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+            >
+              demo mode: {task.scenario_mode}
+            </span>
+          )}
+          <VerdictBadge verdict={run.verdict} />
+        </div>
       </div>
 
       <Card>

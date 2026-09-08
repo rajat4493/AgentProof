@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { claimRun, createRun, createTask, listRuns, verifyRun, type Run } from "@/lib/api";
+import {
+  claimRun,
+  createRun,
+  createTask,
+  listRuns,
+  verifyRun,
+  type Run,
+  type ScenarioMode,
+} from "@/lib/api";
 import { formatMoney, formatRelativeTime } from "@/lib/format";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import { Card, CardBody, CardHeader } from "@/components/Card";
@@ -17,6 +25,67 @@ const DEFAULT_FORM = {
   original_request: "Refund €185 for Order 1047 and notify the customer.",
 };
 
+type DemoScenario = {
+  key: ScenarioMode;
+  label: string;
+  description: string;
+  expectedVerdict: string;
+  requestText: string;
+};
+
+const DEMO_SCENARIOS: DemoScenario[] = [
+  {
+    key: "NORMAL",
+    label: "Run Successful Scenario",
+    description: "Refund and notification both persist correctly.",
+    expectedVerdict: "VERIFIED",
+    requestText: "Refund €185 for Order 1047 and notify the customer.",
+  },
+  {
+    key: "FALSE_ACK",
+    label: "Run False Success Scenario",
+    description: "The refund action looks accepted but is never persisted.",
+    expectedVerdict: "CONTRADICTED",
+    requestText: "Refund €185 for Order 1047 and notify the customer.",
+  },
+  {
+    key: "DROP_NOTIFICATION",
+    label: "Run Partial Failure Scenario",
+    description: "Refund succeeds; the notification silently never sends.",
+    expectedVerdict: "CONTRADICTED",
+    requestText: "Refund €185 for Order 1047 and notify the customer.",
+  },
+  {
+    key: "READ_UNAVAILABLE",
+    label: "Run Evidence Unavailable Scenario",
+    description: "The refund succeeds, but AgentProof's read path is unreachable.",
+    expectedVerdict: "INDETERMINATE",
+    requestText: "Refund €185 for Order 1047 and notify the customer.",
+  },
+];
+
+async function runFullFlow(task: {
+  order_id: string;
+  customer_id: string;
+  expected_amount_minor_units: number;
+  currency: string;
+  notification_required: boolean;
+  original_request: string;
+  scenario_mode?: ScenarioMode;
+}, onStatus: (s: string) => void): Promise<Run> {
+  onStatus("Creating task…");
+  const createdTask = await createTask(task);
+
+  onStatus("Running Claude agent against the simulator…");
+  const run = await createRun(createdTask.id);
+
+  onStatus("Normalizing agent claim…");
+  await claimRun(run.id);
+
+  onStatus("AgentProof independently verifying…");
+  return verifyRun(run.id);
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [runs, setRuns] = useState<Run[]>([]);
@@ -24,6 +93,7 @@ export default function HomePage() {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [busyScenario, setBusyScenario] = useState<ScenarioMode | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function refreshRuns() {
@@ -42,31 +112,47 @@ export default function HomePage() {
     setBusy(true);
     setError(null);
     try {
-      setStatus("Creating task…");
-      const task = await createTask({
-        order_id: form.order_id,
-        customer_id: form.customer_id,
-        expected_amount_minor_units: Math.round(parseFloat(form.amount) * 100),
-        currency: form.currency,
-        notification_required: form.notification_required,
-        original_request: form.original_request,
-      });
-
-      setStatus("Running Claude agent against the simulator…");
-      const run = await createRun(task.id);
-
-      setStatus("Normalizing agent claim…");
-      await claimRun(run.id);
-
-      setStatus("AgentProof independently verifying…");
-      await verifyRun(run.id);
-
+      const run = await runFullFlow(
+        {
+          order_id: form.order_id,
+          customer_id: form.customer_id,
+          expected_amount_minor_units: Math.round(parseFloat(form.amount) * 100),
+          currency: form.currency,
+          notification_required: form.notification_required,
+          original_request: form.original_request,
+        },
+        setStatus
+      );
       router.push(`/runs/${run.id}`);
     } catch (err) {
       setError(String(err));
     } finally {
       setBusy(false);
       setStatus(null);
+    }
+  }
+
+  async function handleDemoScenario(scenario: DemoScenario) {
+    setBusyScenario(scenario.key);
+    setError(null);
+    try {
+      const run = await runFullFlow(
+        {
+          order_id: "ORD-1047",
+          customer_id: "C-891",
+          expected_amount_minor_units: 18500,
+          currency: "EUR",
+          notification_required: true,
+          original_request: scenario.requestText,
+          scenario_mode: scenario.key,
+        },
+        () => {}
+      );
+      router.push(`/runs/${run.id}`);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusyScenario(null);
     }
   }
 
@@ -88,6 +174,50 @@ export default function HomePage() {
           <Stat label="Contradicted" value={`${contradicted}`} color="var(--contradicted)" />
           <Stat label="Indeterminate" value={`${indeterminate}`} color="var(--indeterminate)" />
         </div>
+      </section>
+
+      <section>
+        <Card>
+          <CardHeader>Demo scenarios — deterministic failure injection</CardHeader>
+          <CardBody>
+            <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
+              Each button runs the real Claude agent against ORD-1047 / C-891 under a controlled
+              simulator mode, then independently verifies the result. Deterministic and
+              repeatable — no manual database edits, no need to reset between runs.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {DEMO_SCENARIOS.map((scenario) => (
+                <button
+                  key={scenario.key}
+                  onClick={() => handleDemoScenario(scenario)}
+                  disabled={busyScenario !== null || busy}
+                  className="text-left rounded-lg border p-4 hover:opacity-90 disabled:opacity-50 transition"
+                  style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm">{scenario.label}</span>
+                    <span className="text-xs mono" style={{ color: "var(--muted)" }}>
+                      → {scenario.expectedVerdict}
+                    </span>
+                  </div>
+                  <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
+                    {scenario.description}
+                  </p>
+                  {busyScenario === scenario.key && (
+                    <p className="text-xs mt-2 font-medium" style={{ color: "var(--accent)" }}>
+                      Running…
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+            {error && (
+              <p className="text-xs mt-3" style={{ color: "var(--contradicted)" }}>
+                {error}
+              </p>
+            )}
+          </CardBody>
+        </Card>
       </section>
 
       <section className="grid md:grid-cols-2 gap-8">
@@ -144,7 +274,7 @@ export default function HomePage() {
 
               <button
                 type="submit"
-                disabled={busy}
+                disabled={busy || busyScenario !== null}
                 className="w-full rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                 style={{ background: "var(--accent)" }}
               >
@@ -178,6 +308,11 @@ export default function HomePage() {
                       <div>
                         <div className="text-sm font-medium">
                           {r.task.order_id} · {formatMoney(r.task.expected_amount_minor_units, r.task.currency)}
+                          {r.task.scenario_mode !== "NORMAL" && (
+                            <span className="mono text-xs ml-2" style={{ color: "var(--muted)" }}>
+                              {r.task.scenario_mode}
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs" style={{ color: "var(--muted)" }}>
                           {r.agent_identity} · {formatRelativeTime(r.created_at)}

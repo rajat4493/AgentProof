@@ -57,6 +57,7 @@ def _task_to_response(task: Task) -> TaskResponse:
         currency=task.currency,
         notification_required=task.notification_required,
         original_request=task.original_request,
+        scenario_mode=task.scenario_mode,
         created_at=task.created_at,
     )
 
@@ -120,6 +121,7 @@ def create_task(body: TaskCreateRequest, db: Session = Depends(get_db)):
         currency=body.currency,
         notification_required=body.notification_required,
         original_request=body.original_request,
+        scenario_mode=body.scenario_mode,
     )
     db.add(task)
     db.commit()
@@ -152,7 +154,7 @@ def create_run(body: RunCreateRequest, db: Session = Depends(get_db)):
     db.refresh(run)
 
     expected_outcome = _expected_outcome(task)
-    result = run_agent(expected_outcome, task.original_request)
+    result = run_agent(expected_outcome, task.original_request, run.id, task.scenario_mode)
 
     run.raw_claim = result["raw_claim"]
     run.agent_transcript = result["transcript"]
@@ -236,7 +238,7 @@ async def verify_run(run_id: str, db: Session = Depends(get_db)):
     claim = RefundAndNotifyClaim(**run.normalized_claim)
 
     adapter = PaymentCustomerEvidenceAdapter()
-    collection = await adapter.collect_evidence(claim, expected_outcome)
+    collection = await adapter.collect_evidence(claim, expected_outcome, run.id, task.scenario_mode)
 
     verdict, predicate_results = evaluate(
         proof_definition, expected_outcome, collection.normalized(), collection.unreachable_fields()

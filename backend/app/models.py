@@ -58,6 +58,11 @@ class Refund(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: f"RF-{uuid.uuid4().hex[:8]}")
     order_id: Mapped[str] = mapped_column(ForeignKey("orders.id"), nullable=False)
     customer_id: Mapped[str] = mapped_column(ForeignKey("customers.id"), nullable=False)
+    # Plain string reference supplied by the caller — not a foreign key into
+    # AgentProof's own `runs` table. The simulator is a separate system of
+    # record and only knows an opaque correlation string, the same way a
+    # real payment processor would (docs/PROOF_MODEL.md).
+    run_id: Mapped[str] = mapped_column(String, nullable=False)
     amount_minor_units: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     status: Mapped[RefundStatus] = mapped_column(Enum(RefundStatus), nullable=False)
@@ -70,6 +75,7 @@ class Message(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: f"MSG-{uuid.uuid4().hex[:8]}")
     customer_id: Mapped[str] = mapped_column(ForeignKey("customers.id"), nullable=False)
     order_id: Mapped[str] = mapped_column(ForeignKey("orders.id"), nullable=False)
+    run_id: Mapped[str] = mapped_column(String, nullable=False)
     channel: Mapped[str] = mapped_column(String, nullable=False, default="email")
     body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
@@ -88,6 +94,10 @@ class Task(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     notification_required: Mapped[bool] = mapped_column(nullable=False, default=True)
     original_request: Mapped[str] = mapped_column(Text, nullable=False)
+    # Demo/test control only — never part of ExpectedOutcome, never seen by
+    # the LLM. Drives deterministic failure injection in the simulator
+    # (docs/MVP_SCOPE.md § Milestone 2).
+    scenario_mode: Mapped[str] = mapped_column(String, nullable=False, default="NORMAL")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     runs: Mapped[list["Run"]] = relationship(back_populates="task")
