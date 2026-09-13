@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.adapter import ADAPTER_REGISTRY
 from app.agent import run_agent
+from app.agent_stripe import run_agent_stripe
 from app.claim_normalizer import normalize_claim
 from app.claims import CLAIM_SCHEMAS
 from app.database import Base, engine, get_db
@@ -59,6 +60,8 @@ def _task_to_response(task: Task) -> TaskResponse:
         notification_required=task.notification_required,
         original_request=task.original_request,
         scenario_mode=task.scenario_mode,
+        target_system=task.target_system,
+        task_payload=task.task_payload,
         created_at=task.created_at,
     )
 
@@ -123,6 +126,8 @@ def create_task(body: TaskCreateRequest, db: Session = Depends(get_db)):
         notification_required=body.notification_required,
         original_request=body.original_request,
         scenario_mode=body.scenario_mode,
+        target_system=body.target_system,
+        task_payload=body.task_payload,
     )
     db.add(task)
     db.commit()
@@ -155,7 +160,12 @@ def create_run(body: RunCreateRequest, db: Session = Depends(get_db)):
     db.refresh(run)
 
     expected_outcome = _expected_outcome(task)
-    result = run_agent(expected_outcome, task.original_request, run.id, task.scenario_mode)
+    if task.target_system == "stripe":
+        result = run_agent_stripe(expected_outcome, task.original_request, run.id)
+    elif task.target_system == "simulator":
+        result = run_agent(expected_outcome, task.original_request, run.id, task.scenario_mode)
+    else:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown target_system {task.target_system!r}")
 
     run.raw_claim = result["raw_claim"]
     run.agent_transcript = result["transcript"]

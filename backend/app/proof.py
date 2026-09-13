@@ -59,6 +59,19 @@ REFUND_COMPLETED_V1 = ProofDefinition(
     ],
 )
 
+STRIPE_REFUND_V1 = ProofDefinition(
+    proof_id="stripe_refund_v1",
+    claim_type="stripe_refund",
+    required_checks=[
+        ProofCheck(field="charge_exists", expected=True),
+        ProofCheck(field="charge.customer_id", source="customer_id"),
+        ProofCheck(field="charge.refunded", expected=True),
+        ProofCheck(field="charge.amount_refunded", source="expected_amount_minor_units"),
+        ProofCheck(field="charge.currency", source="currency"),
+    ],
+)
+
 PROOF_DEFINITIONS_BY_CLAIM_TYPE: dict[str, ProofDefinition] = {
     REFUND_COMPLETED_V1.claim_type: REFUND_COMPLETED_V1,
+    STRIPE_REFUND_V1.claim_type: STRIPE_REFUND_V1,
 }

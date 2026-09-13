@@ -181,6 +181,16 @@ class PaymentCustomerEvidenceAdapter:
 # adapter generically instead of hardcoding PaymentCustomerEvidenceAdapter.
 # Still exactly one entry; a second claim type would register its own
 # adapter here without verify_run() changing.
-ADAPTER_REGISTRY: dict[str, EvidenceAdapter] = {
-    "refund_and_notify": PaymentCustomerEvidenceAdapter(),
-}
+def _build_adapter_registry() -> dict[str, EvidenceAdapter]:
+    # Imported lazily/at module load (not at the top of this file) to avoid a
+    # circular import: adapter_stripe.py imports Evidence/EvidenceCollectionResult
+    # from this module.
+    from app.adapter_stripe import StripeEvidenceAdapter
+
+    return {
+        "refund_and_notify": PaymentCustomerEvidenceAdapter(),
+        "stripe_refund": StripeEvidenceAdapter(),
+    }
+
+
+ADAPTER_REGISTRY: dict[str, EvidenceAdapter] = _build_adapter_registry()

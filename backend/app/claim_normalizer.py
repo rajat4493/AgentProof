@@ -22,26 +22,34 @@ from app.config import settings
 NORMALIZER_MODEL = settings.claude_model
 
 SYSTEM_PROMPT = """\
-You translate a support agent's free-text completion claim into a \
+You translate a support/payments agent's free-text completion claim into a \
 structured record. You do not judge whether the claim is true — you only \
 extract what the agent said.
 
 Call record_normalized_claim exactly once.
 
-If the claim clearly describes a refund being completed and (optionally) \
-the customer being notified, set claim_type to "refund_and_notify" and fill \
-in every refund_and_notify field from what the claim states. If the claim \
-does not clearly describe this, or you cannot confidently determine a \
-required field's value from the text, set claim_type to "not_mappable" and \
-leave the other fields null. Never guess a value you cannot support from \
-the claim text.
+- If the claim clearly describes a refund being completed against a \
+  Stripe charge (order_id/charge_id, amount, currency) with NO mention of \
+  a customer notification, set claim_type to "stripe_refund" and fill in \
+  charge_id, amount_claimed_minor_units, currency_claimed, refund_claimed. \
+  Leave customer_id and notification_claimed null.
+- If the claim clearly describes a refund being completed and (optionally) \
+  the customer being notified, set claim_type to "refund_and_notify" and \
+  fill in every refund_and_notify field from what the claim states.
+- If the claim does not clearly describe either of the above, or you cannot \
+  confidently determine a required field's value from the text, set \
+  claim_type to "not_mappable" and leave the other fields null.
+
+Never guess a value you cannot support from the claim text.
 """
 
-# The tool schema's fields are specific to today's one claim type
-# (refund_and_notify) — a second claim type would need its own field set
-# here too. What's generic is *validation*: normalize_claim() below looks
-# up the Pydantic model for whatever claim_type comes back from
-# app.claims.CLAIM_SCHEMAS, rather than hardcoding one model class.
+# The tool schema's fields are a superset across today's two claim types
+# (refund_and_notify, stripe_refund) — each claim type only populates the
+# subset it needs, leaving the rest null. What's generic is *validation*:
+# normalize_claim() below looks up the Pydantic model for whatever
+# claim_type comes back from app.claims.CLAIM_SCHEMAS, rather than
+# hardcoding one model class, and drops nulls before validating so each
+# schema's `extra="forbid"` still enforces its own exact field set.
 RECORD_CLAIM_TOOL = {
     "name": "record_normalized_claim",
     "description": "Record the structured interpretation of the agent's free-text claim.",
@@ -51,6 +59,7 @@ RECORD_CLAIM_TOOL = {
         "properties": {
             "claim_type": {"type": "string", "enum": [*KNOWN_CLAIM_TYPES, "not_mappable"]},
             "order_id": {"type": ["string", "null"]},
+            "charge_id": {"type": ["string", "null"]},
             "customer_id": {"type": ["string", "null"]},
             "amount_claimed_minor_units": {"type": ["integer", "null"]},
             "currency_claimed": {"type": ["string", "null"]},
@@ -60,6 +69,7 @@ RECORD_CLAIM_TOOL = {
         "required": [
             "claim_type",
             "order_id",
+            "charge_id",
             "customer_id",
             "amount_claimed_minor_units",
             "currency_claimed",

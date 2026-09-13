@@ -116,6 +116,17 @@ class Task(Base):
     # the LLM. Drives deterministic failure injection in the simulator
     # (docs/MVP_SCOPE.md § Milestone 2).
     scenario_mode: Mapped[str] = mapped_column(String, nullable=False, default="NORMAL")
+    # Which real system (or the simulator) this task's agent/adapter pair
+    # targets. Selects which agent write-path (app.agent / app.agent_stripe /
+    # ...) and which claim_type's evidence adapter (app.adapter.ADAPTER_REGISTRY)
+    # a run uses — see app/main.py's create_run(). "simulator" is the only
+    # value that existed before this field was added.
+    target_system: Mapped[str] = mapped_column(String, nullable=False, default="simulator")
+    # Platform-specific extra fields a real integration's agent needs that
+    # don't fit the simulator-shaped ExpectedOutcome columns above (e.g. a
+    # pre-existing Stripe charge_id to refund). Never read by the verifier —
+    # only by the target system's agent write-path.
+    task_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     runs: Mapped[list["Run"]] = relationship(back_populates="task")

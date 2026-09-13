@@ -14,10 +14,11 @@ applies for a given claim_type; it adds no validation behavior of its own.
 
 from pydantic import BaseModel
 
-from app.schemas import RefundAndNotifyClaim
+from app.schemas import RefundAndNotifyClaim, StripeRefundClaim
 
 CLAIM_SCHEMAS: dict[str, type[BaseModel]] = {
     "refund_and_notify": RefundAndNotifyClaim,
+    "stripe_refund": StripeRefundClaim,
 }
 
 KNOWN_CLAIM_TYPES: tuple[str, ...] = tuple(CLAIM_SCHEMAS.keys())

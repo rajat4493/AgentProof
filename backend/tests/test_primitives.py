@@ -9,8 +9,9 @@ import pytest
 from pydantic import ValidationError
 
 from app.adapter import ADAPTER_REGISTRY, EvidenceAdapter, PaymentCustomerEvidenceAdapter
+from app.adapter_stripe import StripeEvidenceAdapter
 from app.claims import CLAIM_SCHEMAS, KNOWN_CLAIM_TYPES
-from app.proof import PROOF_DEFINITIONS_BY_CLAIM_TYPE, ProofCheck, REFUND_COMPLETED_V1
+from app.proof import PROOF_DEFINITIONS_BY_CLAIM_TYPE, ProofCheck, REFUND_COMPLETED_V1, STRIPE_REFUND_V1
 
 
 def test_claim_schema_registry_matches_known_claim_types():
@@ -39,6 +40,16 @@ def test_adapter_registry_holds_the_real_adapter_not_a_stub():
     assert adapter.id == "payment_customer_simulator_v1"
 
 
+def test_stripe_claim_type_registered_in_lockstep():
+    assert "stripe_refund" in CLAIM_SCHEMAS
+    assert PROOF_DEFINITIONS_BY_CLAIM_TYPE["stripe_refund"] is STRIPE_REFUND_V1
+    assert STRIPE_REFUND_V1.proof_id == "stripe_refund_v1"
+    assert len(STRIPE_REFUND_V1.required_checks) == 5
+    adapter = ADAPTER_REGISTRY["stripe_refund"]
+    assert isinstance(adapter, StripeEvidenceAdapter)
+    assert adapter.id == "stripe_charges_v1"
+
+
 def test_proof_check_rejects_both_expected_and_source():
     with pytest.raises(ValidationError):
         ProofCheck(field="x", expected=True, source="order_id")
@@ -58,8 +69,9 @@ def test_get_proofs_endpoint_serializes_typed_proof_definitions(client):
     resp = client.get("/api/proofs")
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body) == 1
-    assert body[0]["proof_id"] == "refund_completed_v1"
-    assert body[0]["claim_type"] == "refund_and_notify"
-    assert len(body[0]["required_checks"]) == 9
-    assert body[0]["required_checks"][0]["field"] == "refund_exists"
+    by_claim_type = {p["claim_type"]: p for p in body}
+    assert "refund_and_notify" in by_claim_type
+    refund_proof = by_claim_type["refund_and_notify"]
+    assert refund_proof["proof_id"] == "refund_completed_v1"
+    assert len(refund_proof["required_checks"]) == 9
+    assert refund_proof["required_checks"][0]["field"] == "refund_exists"

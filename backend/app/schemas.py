@@ -32,6 +32,16 @@ class TaskCreateRequest(BaseModel):
     # NOT part of ExpectedOutcome below, which stays the pure business-outcome
     # contract and is never touched by test-mode concerns.
     scenario_mode: ScenarioMode = "NORMAL"
+    # Which system this task targets — "simulator" (default) or a real
+    # integration name ("stripe", "github", "shopify", "hubspot", ...). For
+    # a real target, `order_id` holds that system's own identifier for the
+    # resource being acted on (e.g. a Stripe charge_id) — the field is kept
+    # rather than duplicated per platform so the rest of the pipeline
+    # (ExpectedOutcome, verdict engine) stays generic.
+    target_system: str = "simulator"
+    # Platform-specific extra fields the target system's agent needs beyond
+    # the columns above. Never read by the verifier.
+    task_payload: dict | None = None
 
 
 class ExpectedOutcome(BaseModel):
@@ -61,6 +71,8 @@ class TaskResponse(BaseModel):
     notification_required: bool
     original_request: str
     scenario_mode: str
+    target_system: str
+    task_payload: dict | None
     created_at: datetime
 
 
@@ -87,6 +99,25 @@ class RefundAndNotifyClaim(BaseModel):
     currency_claimed: str
     refund_claimed: bool
     notification_claimed: bool
+
+
+class StripeRefundClaim(BaseModel):
+    """Normalized claim schema for claim_type = stripe_refund.
+
+    Stripe has no notification concept in AgentProof's scope, so unlike
+    refund_and_notify this claim is refund-only. As with every claim type,
+    these fields are for display/audit only — the verdict engine always
+    compares independently observed evidence against the original
+    ExpectedOutcome (task.*), never against these claimed values.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    claim_type: Literal["stripe_refund"]
+    charge_id: str
+    amount_claimed_minor_units: int
+    currency_claimed: str
+    refund_claimed: bool
 
 
 class RunCreateRequest(BaseModel):
